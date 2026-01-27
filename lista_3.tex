@@ -1,0 +1,235 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[polish]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{graphicx}
+\usepackage{subcaption} 
+\graphicspath{{./images/}} 
+\usepackage{booktabs} 
+\usepackage{multirow}
+\usepackage{array}
+\usepackage{amsmath, amssymb}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+\usepackage[hidelinks]{hyperref}
+\usepackage{cite}
+\usepackage{xcolor}
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{3}
+\setlength{\parindent}{1.25cm}
+\setlength{\parskip}{6pt}
+\usepackage{listings}
+\lstset{
+    basicstyle=\ttfamily\small,
+    breaklines=true,
+    frame=single,
+    numbers=left,
+    numberstyle=\tiny,
+    keywordstyle=\color{blue},
+    commentstyle=\color{gray},
+}
+\begin{document}
+
+\begin{center}
+    {\LARGE \textbf{Sprawozdanie z listy 3 (AiSD)}}\\[0.2em]
+    {\normalsize Szymon Wojtasik, nr albumu: 287306}
+\end{center}
+
+\vspace{-1em}
+
+\section{Problem rozcinania pręta}
+\subsection{Idea i "naiwność" rozwiązania}
+Teoretycznie problem pręta wydaje się trywialny – tniemy tam, gdzie zysk jest największy. Jednak algorytm naiwny (rekurencyjny) ma pewną ideę, by zrozumieć dlaczego samo wywoływanie funkcji bez zapamiętywania jest "ciężkie".\\
+Kody będę prezentował w uproszczeniu, żeby było czytelniej.\\
+
+\begin{lstlisting}[language=C++]
+int naiwny_algorytm(const vector<int>& p, int n) {
+    if (n == 0) return 0;
+    int q = INT_MIN;
+    for (int i = 1; i <= n; i++) {
+        q = max(q, p[i] + naiwny_algorytm(p, n - i));
+    }
+    return q;
+}
+\end{lstlisting}
+W całym tym algorytmie najważniejsze dla mnie było:\\
+$\implies$rekurencyjne wywoływanie samego siebie w pętli (linijka 5)\\
+$\implies$brak jakiegokolwiek zapisu wyników pośrednich\\
+Wskutek tego, dla $n=30$ czas wykonania staje się nieznośny, co jest bardzo nieoptymalne względem wersji dynamicznych.
+
+\subsection{Odkrycie spamiętywania}
+Przejdźmy do modyfikacji, która jest zdecydowanie ciekawsza. Wersja iteracyjna buduje rozwiązanie od dołu, eliminując powtórzenia.
+\begin{lstlisting}[language=C++]
+for (int j = 1; j <= n; j++) {
+    int q = INT_MIN;
+    for (int i = 1; i <= j; i++) {
+        if (q < p[i] + r[j - i]) {
+            q = p[i] + r[j - i];
+            s[j] = i; 
+        }
+    }
+    r[j] = q;
+}
+\end{lstlisting}
+Tutaj kluczowe było dla mnie:\\
+$\implies$wykorzystanie tablicy $r$ do odczytu gotowych wyników (linijka 4)\\
+$\implies$tablica $s$ (linijka 6), która pozwala potem odtworzyć gdzie wykonaliśmy cięcie.\\
+Dzięki temu algorytm działa błyskawicznie nawet dla dużych danych.
+
+\subsection{Odzyskiwanie wyniku}
+Samo wyliczenie maksymalnego zysku to nie wszystko. Trzeba jeszcze wiedzieć, jakie to były kawałki.
+\begin{lstlisting}[language=C++]
+void print_solution(const vector<int>& s, int n) {
+    while (n > 0) {
+        cout << s[n] << " ";
+        n = n - s[n];
+    }
+}
+\end{lstlisting}
+Zauważmy, że pętla `while` po prostu odejmuje długość odciętego kawałka od $n$.\\
+$\implies$ Dzięki tablicy $s$ nie musimy ponownie przeszukiwać drzewa rozwiązań.
+$\implies$ Złożoność odzyskiwania to $O(n)$, co jest pomijalne przy samym obliczaniu ($O(n^2)$).
+
+\section{Najdłuższy Wspólny Podciąg}
+\subsection{Macierz kierunków}
+W przypadku LCS (Longest Common Subsequence) mamy do czynienia z macierzą 2D. Mała zagwostka pojawia się przy rekonstrukcji wyniku – musimy wiedzieć skąd przyszliśmy.
+\begin{lstlisting}[language=C++]
+if (X[i] == Y[j]) {
+    c[i][j] = c[i - 1][j - 1] + 1;
+    b[i][j] = SKOS;
+} else {
+    if (c[i - 1][j] >= c[i][j - 1]) {
+        c[i][j] = c[i - 1][j];
+        b[i][j] = GORA;
+    }
+}
+\end{lstlisting}
+W tym algorytmie najważniejsze było:\\
+$\implies$"skos" oznacza znalezienie wspólnego znaku (zwiększamy wynik)\\
+$\implies$tablica $b$ służy jako mapa drogową do cofania się (backtracking)\\
+
+\subsection{Pułapka rekurencji}
+W wersji rekurencyjnej łatwo zapomnieć o najważniejszym warunku, który zmienia wszystko.
+\begin{lstlisting}[language=C++]
+if (c[i][j] != -1) return c[i][j];
+\end{lstlisting}
+Gdybyśmy pominęli ten warunek (linijka wyżej), algorytm działałby wykładniczo, tak samo jak naiwne cięcie pręta.\\
+$\implies$ Wniosek: Zainicjowanie macierzy wartościami -1 jest kluczowe, aby odróżnić stan "nieobliczony" od stanu "zysk równy 0".
+
+\section{Wybór zajęć}
+\subsection{Zachłanność a Dynamika}
+Tutaj następuje ciekawe zderzenie podejść. Algorytm zachłanny wymaga jedynie posortowania zajęć po czasie zakończenia $f$.
+\begin{lstlisting}[language=C++]
+for (int m = n - 1; m >= 1; m--) {
+    if (f[m] <= s[k]) {
+        A.push_back(m);
+        k = m;
+    }
+}
+\end{lstlisting}
+Natomiast podejście dynamiczne (DP) dla tego problemu jest zaskakująco nieefektywne ($O(n^2)$).\\
+$\implies$ Odkrycie: nie zawsze "cięższy" algorytm (DP) jest lepszy. Sortowanie + jedna pętla wygrywa przy $N > 5000$.
+
+\subsection{Warunek sortowania}
+Warto tu wspomnieć, że sortowanie po czasie startu $s$ nie zadziałałoby tak łatwo w podejściu zachłannym "od przodu".\\
+$\implies$ Algorytm musi wybierać to, co kończy się najszybciej (lub zaczyna najpóźniej, jeśli idziemy od tyłu), żeby zostawić miejsce dla innych.\\
+$\implies$ Złożoność determinuje tutaj sortowanie: $O(n \log n)$.
+
+\section{Kodowanie Huffmana (Ternarne)}
+\subsection{Odwrócona logika kolejki}
+Standardowa biblioteka C++ (`priorityqueue`) zdejmuje elementy największe. My w Huffmanie potrzebujemy najmniejszych (najrzadszych znaków).
+\begin{lstlisting}[language=C++]
+struct Compare {
+    bool operator()(Node* l, Node* r) {
+        return l->freq > r->freq;
+    }
+};
+\end{lstlisting}
+Tutaj musiałem zastosować "trik" z odwróceniem znaku nierówności.\\
+$\implies$ Dzięki temu na wierzchu kolejki (top) lądują elementy o najmniejszej wadze.
+\clearpage
+\subsection{Modyfikacja i parzystość}
+Standardowy Huffman łączy 2 węzły. Wersja ternarna (3 dzieci) ma pewną zagwostkę matematyczną. Żeby na końcu został dokładnie jeden korzeń, liczba liści musi pasować do redukcji o 2 w każdym kroku.
+\begin{lstlisting}[language=C++]
+if (Q.size() % 2 == 0) {
+    Q.push(new Node('\0', 0)); 
+}
+\end{lstlisting}
+W tym kodzie najważniejsze dla mnie było:\\
+$\implies$kodowanie alfabetem \{0, 1, 2\} zamiast binarnym, co skraca wysokość drzewa.\\
+$\implies$mniejsza wysokość drzewa to średnio krótsze kody
+
+\clearpage
+\section{Wykres porównawczy - LCS}
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.9\textwidth]{lcs_wykres.PNG}
+\end{figure}
+
+Patrząc na wykres dla LCS, rzuca się w oczy liniowa zależność obu podejść, ale z wyraźnym rozwarstwieniem.\\
+$\implies$ Obie metody mają tę samą złożoność $O(n \cdot m)$, co widać po kształcie krzywych.\\
+$\implies$ Wersja rekurencyjna (linia przerywana) jest wolniejsza. Iteracja na pustej tablicy zawsze wygrywa wydajnością, mimo że asymptotycznie to to samo.
+\clearpage
+\section{Wykres porównawczy - Huffman}
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.9\textwidth]{huffmann_wykres.PNG}
+\end{figure}
+
+Tutaj mamy do czynienia z anomalią w porównaniu do poprzednich algorytmów. Wykres jest niemal płaski, a czasy są w granicach 30-50 mikrosekund nawet dla$N=1000000$.\\
+$\implies$ Potwierdza to to, że złożoność Huffmana zależy od wielkości alfabetu (liczby unikalnych znaków), a nie bezpośrednio od długości tekstu.\\
+
+\clearpage
+\section{Wykres porównawczy - Rod Cutting}
+\begin{figure}[h!]
+    \centering
+    % Uwaga: LaTeX może mieć problem z polskimi znakami w nazwie pliku.
+    % Jeśli wykres się nie wyświetli, zmień nazwę pliku na "ciecie_preta_wykres.PNG"
+    \includegraphics[width=0.9\textwidth]{cięcie_pręta_wykres.PNG}
+\end{figure}
+
+
+\begin{itemize}
+    \item Czerwona linia (algorytm naiwny) pnie się pionowo w górę już przy $N=30$. Sugeruje to złożoność wykładniczą.
+    \item Wersje iteracyjna i ze spamiętywaniem (niebieska i pomarańczowa) wyglądają przy tym niemal jak linie płaskie, mimo że $N=2000$.
+    \item \textbf{Wniosek:} W tym przypadku programowanie dynamiczne nie jest optymalizacją tylko jedynym sposobem, by algorytm w ogóle działał dla $N > 30$.
+\end{itemize}
+\clearpage
+\section{Wykres porównawczy - Activity Selection}
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.9\textwidth]{activity_selector_wykres.PNG}
+\end{figure}
+Tutaj sytuacja jest odwrotna i bardzo ciekawa.
+\begin{itemize}
+    \item Algorytm dynamiczny rośnie znacznie szybciej niż zachłanny. Dla $N=8000$ różnica jest gigantyczna (skala logarytmiczna na osi Y).
+    \item Podejście iteracyjne  jest niemal przyklejone do osi X.
+    \item \textbf{Wniosek:} Używanie programowania dynamicznego do problemu, który ma strukturę matroidu i rozwiązuje się zachłannie jest błędem.
+\end{itemize}
+\clearpage
+\section{Tabela zbiorcza}
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=1.0\textwidth]{tabela.PNG}
+\end{figure}
+
+
+
+\clearpage
+\section{Wnioski końcowe}
+Realizacja tej listy zadań doprowadziła mnie do kilku przemyśleń na temat doboru algorytmów:
+
+\begin{enumerate}
+    \item \textbf{Pułapka rekurencji naiwnej} – Najważniejsza lekcja płynie z problemu cięcia pręta. Różnica między $O(2^n)$ a $O(n^2)$ to nie jest kwestia przypadku. Bez spamiętywania niektóre algorytmy są po prostu bezużyteczne.
+
+    \item \textbf{Nie zawsze dynamiczny jest szybszy} – Jeśli problem ma strukturę pozwalającą na zachłanność , to sortowanie i prosta pętla ($O(n \log n)$) dominują wydajnością podejście dynamiczne. Widać to wyraźnie w tabeli, gdzie dla $N=8000$ różnica jest kolosalna (242ms vs 0.05ms).
+
+    \item \textbf{Koszty} – Przy LCS zauważyłem, że nawet przy tej samej złożoności obliczeniowej, implementacja ma znaczenie. Rekurencja ze spamiętywaniem jest wygodniejsza w zapisie, ale iteracja jest lżejsza dla procesora. 
+
+    \item \textbf{Dane} – Przypadek Huffmana pokazał, że musimy patrzeć na to, co determinuje złożoność. Czasem $N$  jest mniej istotne niż $K$.
+\end{enumerate}
+
+Podsumowując, lista ta nauczyła mnie, że nie ma idealnego rozwiązania. Programowanie dynamiczne jest potężne tam, gdzie problemy się zazębiają (Rod Cutting, LCS), ale jest balastem tam, gdzie wystarczy zwykła optymalizacja (Activity Selection).
+
+\end{document}
